@@ -300,6 +300,9 @@
       // Wake Lock ref (pour empêcher la mise en veille)
       const wakeLockRef = useRef(null);
 
+      // Bip sound ref
+      const bipSoundBufferRef = useRef(null);
+
       // Initialize AudioContext on first play
       const initAudio = useCallback(() => {
         if (!audioContextRef.current) {
@@ -327,6 +330,35 @@
           } catch (err) {
             console.warn('Erreur lors du release de Wake Lock:', err);
           }
+        }
+      }, []);
+
+      // Load Bip sound from MP3
+      const loadBipSound = useCallback(async () => {
+        try {
+          const response = await fetch('./sounds/Bip_sound.mp3');
+          const arrayBuffer = await response.arrayBuffer();
+          const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+          bipSoundBufferRef.current = audioBuffer;
+          console.log('Bip sound chargé');
+        } catch (err) {
+          console.warn('Erreur chargement Bip sound:', err);
+        }
+      }, []);
+
+      // Play Bip sound
+      const playBipSound = useCallback(() => {
+        if (!bipSoundBufferRef.current || !audioContextRef.current) return;
+        try {
+          const source = audioContextRef.current.createBufferSource();
+          const gainNode = audioContextRef.current.createGain();
+          source.buffer = bipSoundBufferRef.current;
+          source.connect(gainNode);
+          gainNode.connect(audioContextRef.current.destination);
+          gainNode.gain.value = 0.7;
+          source.start(0);
+        } catch (err) {
+          console.warn('Erreur lecture Bip sound:', err);
         }
       }, []);
 
@@ -473,6 +505,12 @@
         playSoundAC("intro", { loop: true, volume: 0.7 });
       }, [config.prepare, initAudio, playSoundAC, stopAllSounds, requestWakeLock]);
 
+      // Load Bip sound on component mount
+      useEffect(() => {
+        initAudio();
+        loadBipSound();
+      }, [initAudio, loadBipSound]);
+
       useEffect(() => {
         if (phase === PHASES.IDLE || isPaused) return;
         if (timeLeft <= 0) {
@@ -484,11 +522,11 @@
         const countdownPhases = [PHASES.WORK, PHASES.REST, PHASES.PREPARE, PHASES.REST_BETWEEN_SETS, PHASES.COOLDOWN];
         const inCountdown = countdownPhases.includes(phase);
         if (timeLeft === 3 && inCountdown) {
-          createTaikoSound(audioContextRef.current, 0.8);
+          playBipSound();
         } else if (timeLeft === 2 && inCountdown) {
-          createTaikoSound(audioContextRef.current, 0.9);
+          playBipSound();
         } else if (timeLeft === 1 && inCountdown) {
-          createTaikoSound(audioContextRef.current, 1.2);
+          playBipSound();
         }
 
         const timer = setTimeout(() => {
@@ -496,7 +534,7 @@
           setTotalElapsed((prev) => prev + 1);
         }, 1000);
         return () => clearTimeout(timer);
-      }, [phase, timeLeft, isPaused]);
+      }, [phase, timeLeft, isPaused, playBipSound]);
 
       const handlePhaseEnd = () => {
         if (phase === PHASES.PREPARE) {
