@@ -522,8 +522,8 @@
           return;
         }
 
-        // Jouer le bip 4 secondes avant la fin de la phase
-        const bipTriggerTime = Math.ceil(bipSoundDurationRef.current / 1000); // ~4 secondes
+        // Jouer le bip 3.6 secondes avant la fin de la phase
+        const bipTriggerTime = Math.round(bipSoundDurationRef.current / 1000); // ~3.6 → 4
         if (timeLeft === bipTriggerTime && !bipPlayedRef.current) {
           playBipSound();
           bipPlayedRef.current = true;
