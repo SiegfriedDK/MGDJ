@@ -303,6 +303,7 @@
       // Bip sound ref
       const bipSoundBufferRef = useRef(null);
       const bipSoundDurationRef = useRef(0);
+      const bipPlayedRef = useRef(false);
 
       // Initialize AudioContext on first play
       const initAudio = useCallback(() => {
@@ -499,6 +500,7 @@
         setCurrentSet(1);
         setIsPaused(false);
         setTotalElapsed(0);
+        bipPlayedRef.current = false;
         initAudio();
         requestWakeLock();
 
@@ -520,56 +522,51 @@
           return;
         }
 
+        // Jouer le bip 4 secondes avant la fin de la phase
+        const bipTriggerTime = Math.ceil(bipSoundDurationRef.current / 1000); // ~4 secondes
+        if (timeLeft === bipTriggerTime && !bipPlayedRef.current) {
+          playBipSound();
+          bipPlayedRef.current = true;
+        }
+
         const timer = setTimeout(() => {
           setTimeLeft((prev) => prev - 1);
           setTotalElapsed((prev) => prev + 1);
         }, 1000);
         return () => clearTimeout(timer);
-      }, [phase, timeLeft, isPaused]);
+      }, [phase, timeLeft, isPaused, playBipSound]);
 
       const handlePhaseEnd = () => {
         if (phase === PHASES.PREPARE) {
-          // PREPARE -> WORK : Bip à la fin, puis démarrage du travail
-          playBipSound();
-          const bipDuration = bipSoundDurationRef.current;
-          const tid = setTimeout(() => {
-            stopSource("intro");
-            playSoundAC("roundStart");
-            const roundStartDelay = soundBuffersRef.current["roundStart"] ? 5000 : 0;
-            const tid2 = setTimeout(() => playSoundAC("background", { loop: true }), roundStartDelay);
-            pendingTimeoutsRef.current.push(tid2);
-          }, bipDuration);
+          // PREPARE -> WORK
+          bipPlayedRef.current = false;
+          stopSource("intro");
+          playSoundAC("roundStart");
+          const roundStartDelay = soundBuffersRef.current["roundStart"] ? 5000 : 0;
+          const tid = setTimeout(() => playSoundAC("background", { loop: true }), roundStartDelay);
           pendingTimeoutsRef.current.push(tid);
           setPhase(PHASES.WORK);
           setTimeLeft(config.work);
         } else if (phase === PHASES.WORK) {
           if (currentCycle < config.cycles) {
-            // WORK -> REST : Bip à la fin, puis repos
-            playBipSound();
-            const bipDuration = bipSoundDurationRef.current;
-            const tid = setTimeout(() => {
-              stopSource("background");
-              playSoundAC("roundEnd");
-              const roundEndDelay = soundBuffersRef.current["roundEnd"] ? 5000 : 0;
-              const tid2 = setTimeout(() => playSoundAC("recovery", { loop: true }), roundEndDelay);
-              pendingTimeoutsRef.current.push(tid2);
-            }, bipDuration);
+            // WORK -> REST
+            bipPlayedRef.current = false;
+            stopSource("background");
+            playSoundAC("roundEnd");
+            const roundEndDelay = soundBuffersRef.current["roundEnd"] ? 5000 : 0;
+            const tid = setTimeout(() => playSoundAC("recovery", { loop: true }), roundEndDelay);
             pendingTimeoutsRef.current.push(tid);
             setPhase(PHASES.REST);
             setTimeLeft(config.rest);
           } else {
             // Last cycle of set
             if (currentSet < config.sets) {
-              // WORK -> REST_BETWEEN_SETS : Bip à la fin
-              playBipSound();
-              const bipDuration = bipSoundDurationRef.current;
-              const tid = setTimeout(() => {
-                stopSource("background");
-                playSoundAC("roundEnd");
-                const roundEndDelay2 = soundBuffersRef.current["roundEnd"] ? 5000 : 0;
-                const tid2 = setTimeout(() => playSoundAC("recovery", { loop: true }), roundEndDelay2);
-                pendingTimeoutsRef.current.push(tid2);
-              }, bipDuration);
+              // WORK -> REST_BETWEEN_SETS
+              bipPlayedRef.current = false;
+              stopSource("background");
+              playSoundAC("roundEnd");
+              const roundEndDelay2 = soundBuffersRef.current["roundEnd"] ? 5000 : 0;
+              const tid = setTimeout(() => playSoundAC("recovery", { loop: true }), roundEndDelay2);
               pendingTimeoutsRef.current.push(tid);
               setPhase(PHASES.REST_BETWEEN_SETS);
               setTimeLeft(config.restBetweenSets);
@@ -589,29 +586,21 @@
             }
           }
         } else if (phase === PHASES.REST) {
-          // REST -> WORK : Bip à la fin, puis nouveau travail
-          playBipSound();
-          const bipDuration = bipSoundDurationRef.current;
-          const tid = setTimeout(() => {
-            stopSource("recovery");
-            playSoundAC("roundStart");
-            const tid2 = setTimeout(() => playSoundAC("background", { loop: true }), 5000);
-            pendingTimeoutsRef.current.push(tid2);
-          }, bipDuration);
+          // REST -> WORK
+          bipPlayedRef.current = false;
+          stopSource("recovery");
+          playSoundAC("roundStart");
+          const tid = setTimeout(() => playSoundAC("background", { loop: true }), 5000);
           pendingTimeoutsRef.current.push(tid);
           setPhase(PHASES.WORK);
           setTimeLeft(config.work);
           setCurrentCycle((prev) => prev + 1);
         } else if (phase === PHASES.REST_BETWEEN_SETS) {
-          // REST_BETWEEN_SETS -> WORK : Bip à la fin
-          playBipSound();
-          const bipDuration = bipSoundDurationRef.current;
-          const tid = setTimeout(() => {
-            stopSource("recovery");
-            playSoundAC("roundStart");
-            const tid2 = setTimeout(() => playSoundAC("background", { loop: true }), 5000);
-            pendingTimeoutsRef.current.push(tid2);
-          }, bipDuration);
+          // REST_BETWEEN_SETS -> WORK
+          bipPlayedRef.current = false;
+          stopSource("recovery");
+          playSoundAC("roundStart");
+          const tid = setTimeout(() => playSoundAC("background", { loop: true }), 5000);
           pendingTimeoutsRef.current.push(tid);
           setPhase(PHASES.WORK);
           setTimeLeft(config.work);
@@ -674,6 +663,7 @@
         setPhase(PHASES.IDLE);
         setIsPaused(false);
         stopAllSounds();
+        bipPlayedRef.current = false;
         releaseWakeLock();
       };
 
